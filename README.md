@@ -26,7 +26,7 @@ Start with **[START_HERE.md](START_HERE.md)** for setup. Deployment instructions
 
 ```mermaid
 flowchart TD
-  A[HTML / CSS / JavaScript] --> B[Express REST API]
+  A[React / Vite / CSS] --> B[Express REST API]
   B --> C[JWT + role and project authorization]
   B --> D[Sequelize services]
   D --> E[(MySQL)]
