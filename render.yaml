@@ -1,0 +1,59 @@
+# Uses your separately provisioned MySQL database. See docs/DEPLOYMENT.md.
+services:
+  - type: pserv
+    name: buildstock-ml
+    runtime: python
+    region: singapore
+    plan: 0.5c-512mb
+    rootDir: ml-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 30 app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: ML_API_KEY
+        generateValue: true
+  - type: web
+    name: buildstock-web
+    runtime: node
+    region: singapore
+    plan: 0.5c-512mb
+    buildCommand: cd frontend && npm ci --include=dev && npm run build && cd ../backend && npm ci --omit=dev
+    preDeployCommand: cd backend && npm run db:init
+    startCommand: cd backend && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: APP_ORIGIN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ALLOW_REGISTRATION
+        value: "true"
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: ML_HOSTPORT
+        fromService:
+          type: pserv
+          name: buildstock-ml
+          property: hostport
+      - key: ML_API_KEY
+        fromService:
+          type: pserv
+          name: buildstock-ml
+          envVarKey: ML_API_KEY

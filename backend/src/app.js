@@ -1,0 +1,27 @@
+import express from 'express';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { ZodError } from 'zod';
+import router from './routes/index.js';
+import { checkOrigin } from './middleware/auth.js';
+import { db } from './models/index.js';
+const app=express();
+app.disable('x-powered-by');
+if(process.env.TRUST_PROXY==='1')app.set('trust proxy',1);
+app.use(helmet());app.use(express.json({limit:'128kb'}));app.use(cookieParser());app.use(checkOrigin);
+app.get('/health',async(req,res)=>{try{await db.authenticate();res.json({status:'ok'});}catch{res.status(503).json({status:'database_unavailable'});}});
+app.use('/api',rateLimit({windowMs:60000,limit:300,standardHeaders:'draft-8',legacyHeaders:false,message:{error:'Too many requests. Please wait a minute.'}}),router);
+app.use('/api',(req,res)=>res.status(404).json({error:'Endpoint not found.'}));
+app.use(express.static(path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../frontend/dist')));
+app.use((err,req,res,next)=>{
+ if(err instanceof ZodError)return res.status(400).json({error:err.issues.map(i=>`${i.path.join('.')}: ${i.message}`).join('; ')});
+ if(err.name==='SequelizeUniqueConstraintError')return res.status(409).json({error:'This email, SKU, assignment, or request key already exists.'});
+ if(err.name==='SequelizeValidationError')return res.status(400).json({error:'Invalid data.'});
+ const status=err.status||500;
+ if(status>=500)console.error('Request failed:',err.name,err.message);
+ res.status(status).json({error:status>=500?'Something went wrong. Please try again.':err.message});
+});
+export default app;

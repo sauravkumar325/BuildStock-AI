@@ -1,0 +1,47 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: buildstock
+      MYSQL_USER: buildstock
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  ml:
+    build: ./ml-service
+    environment:
+      ML_API_KEY: ${ML_API_KEY:?Set ML_API_KEY in .env}
+  backend:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ml:
+        condition: service_started
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      APP_ORIGIN: http://localhost:3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: buildstock
+      DB_USER: buildstock
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      ML_URL: http://ml:8000
+      ML_API_KEY: ${ML_API_KEY}
+      ALLOW_REGISTRATION: "true"
+      ADMIN_NAME: ${ADMIN_NAME}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    command: sh -c "npm run db:init && npm start"
+volumes:
+  mysql_data:

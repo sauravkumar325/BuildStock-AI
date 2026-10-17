@@ -1,0 +1,18 @@
+import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
+import { authenticate,roles } from '../middleware/auth.js';
+import * as auth from '../controllers/auth.js';
+import * as catalog from '../controllers/catalog.js';
+import * as reporting from '../controllers/reporting.js';
+const router=Router();
+const limiter=rateLimit({windowMs:15*60*1000,limit:30,standardHeaders:'draft-8',legacyHeaders:false,message:{error:'Too many login attempts. Try again in 15 minutes.'}});
+router.post('/auth/register',limiter,auth.register);router.post('/auth/login',limiter,auth.login);router.post('/auth/logout',auth.logout);
+router.use(authenticate);
+router.get('/auth/me',(req,res)=>res.json({user:req.user}));
+router.get('/projects',catalog.projects);router.post('/projects',roles('admin','manager'),catalog.saveProject);router.put('/projects/:id',roles('admin','manager'),catalog.saveProject);
+router.get('/projects/:id/members',catalog.members);router.post('/projects/:id/members',roles('admin'),catalog.addMember);router.delete('/projects/:id/members/:userId',roles('admin'),catalog.removeMember);
+router.get('/materials',catalog.materials);router.post('/materials',roles('admin','manager'),catalog.saveMaterial);router.put('/materials/:id',roles('admin','manager'),catalog.saveMaterial);router.delete('/materials/:id',roles('admin','manager'),catalog.archiveMaterial);
+router.post('/stock/in',roles('admin','manager','storekeeper'),reporting.stock('IN'));router.post('/stock/out',roles('admin','manager','storekeeper'),reporting.stock('OUT'));router.get('/stock/history',reporting.stockHistory);router.get('/inventory',reporting.stockInventory);
+router.get('/dashboard',reporting.dashboard);router.get('/reports',reporting.reports);router.get('/intelligence',reporting.intelligence);router.get('/notifications',reporting.intelligence);
+router.get('/audit-logs',roles('admin','manager'),reporting.audits);router.get('/users',roles('admin'),catalog.users);router.put('/users/:id/role',roles('admin'),catalog.changeRole);
+export default router;

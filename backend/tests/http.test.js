@@ -1,0 +1,10 @@
+import test, {before,after} from 'node:test';
+import assert from 'node:assert/strict';
+import app from '../src/app.js';
+let server,base;
+before(async()=>{server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));base=`http://127.0.0.1:${server.address().port}`;});
+after(()=>new Promise(resolve=>server.close(resolve)));
+test('API refuses unauthenticated project access',async()=>{const r=await fetch(base+'/api/projects');assert.equal(r.status,401);assert.match((await r.json()).error,/log in/);});
+test('bad login input rejected before database access',async()=>{const r=await fetch(base+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'invalid',password:''})});assert.equal(r.status,400);});
+test('cross-origin cookie-authenticated writes are blocked',async()=>{const r=await fetch(base+'/api/stock/in',{method:'POST',headers:{Origin:'https://untrusted.example',Cookie:'bs_token=invalid','Content-Type':'application/json'},body:'{}'});assert.equal(r.status,403);});
+test('frontend is served with security headers and local scripts',async()=>{const r=await fetch(base+'/');assert.equal(r.status,200);assert.ok(r.headers.get('content-security-policy'));const html=await r.text();const asset=html.match(/src="([^"]+\.js)"/);assert.ok(asset,'React build includes a JavaScript bundle');const js=await fetch(base+asset[1]);assert.equal(js.status,200);assert.match(js.headers.get('content-type'),/javascript/);});
